@@ -1,16 +1,10 @@
 # Ringell
 
-## Example Program
+Ringell is a prototype compiler from a simple functional language to a strongly normalizing one.
+There is a file `example.rl` in the examples folder. When executing `ringell` on it, all steps should execute succesfully and exit showing the AST of the unrolled program. At the moment, I can't get evaluation to work properly.
 
-You can create a file `example.rl` with the code below. When executing `ringell` on it, all steps should execute succesfully and exit without printing any message. At the moment, only parsing and typecheking are done.
+Here's a hint how to run ringell. The number 5 is how many times we want each recursive function to be unrolled.
 
-```
-sum : nat -> nat -> nat
-sum = \x : nat \y : nat (match x zero -> y suc w -> sum . w . suc y)
-
-mult : nat -> nat -> nat
-mult = \x : nat \y : nat (match x zero -> 0 suc w -> sum . y . (mult . w . y))
-
-main : nat
-main = mult . 3 . 4
+```bash
+ringell example.rl 5
 ```
