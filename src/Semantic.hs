@@ -5,9 +5,9 @@ import Parser
 
 -- Translating the AST into 1st Intermediate Representation 
 -- No invalid names for function decl+def, peano notation
--- brackets info removed
+-- brackets info removed, no duplicate names
 data ExpS 
-    = VarS String
+    = VarS String Int
     | ZeroS  
     | SucS ExpS
     | AbsS String TypeS ExpS
@@ -34,98 +34,79 @@ typeToTypes (BracketT t)   = typeToTypes t
 typeToTypes  NatT          = NatS
 typeToTypes (ArrowT t1 t2) = ArrowS (typeToTypes t1) (typeToTypes t2)
 
-expToExps :: Exp -> ExpS 
-expToExps (BracketE e) = expToExps e
-expToExps (Var v)      = VarS v        
-expToExps (NumE 0)     = ZeroS
-expToExps (NumE x)     = SucS (expToExps (NumE (x-1)))
-expToExps (SucE e)     = SucS (expToExps e)       
-expToExps (Abs v t e)  = AbsS v (typeToTypes t) (expToExps e)      
-expToExps (App e1 e2)  = AppS (expToExps e1) (expToExps e2)        
-expToExps (MatchE e1 e2 (v, e3)) = MatchS (expToExps e1) (expToExps e2) (v, expToExps e3)
+type Scope = [String]
 
-funToFuns :: Fun -> FunS 
-funToFuns (Fun s1 t s2 e)
-  | s1 == s2 = FunS s1 (typeToTypes t) (expToExps e)
-  | otherwise = error "A function declaration does not match its implementation"
+expToExps :: Exp -> Scope -> ExpS 
+expToExps (BracketE e) sc = expToExps e sc 
+expToExps (Var v)      sc = VarS v (-1)       
+expToExps (NumE 0)     sc = ZeroS
+expToExps (NumE x)     sc = SucS (expToExps (NumE (x-1)) sc)
+expToExps (SucE e)     sc = SucS (expToExps e sc)       
+expToExps (Abs v t e)  sc 
+  = if elem v sc 
+       then error $ "Variable " ++ v ++ " is already used" 
+       else AbsS v (typeToTypes t) (expToExps e (v:sc))      
+expToExps (App e1 e2)  sc = AppS (expToExps e1 sc) (expToExps e2 sc)        
+expToExps (MatchE e1 e2 (v, e3)) sc 
+  = if elem v sc 
+       then error $ "Variable " ++ v ++ " is already used"
+       else MatchS (expToExps e1 sc) (expToExps e2 sc) (v, expToExps e3 (v:sc))
 
-progToProgS :: Prog -> ProgS
-progToProgS (MainF t e) = MainS (typeToTypes t) (expToExps e)
-progToProgS (Decl f p)  = DeclS (funToFuns f) (progToProgS p)
+funToFuns :: Fun -> Scope -> FunS 
+funToFuns (Fun s1 t s2 e) sc
+  | s1 == s2 = if elem s1 sc 
+                  then error $ "Function name " ++ s1 ++ " is already used" 
+                  else FunS s1 (typeToTypes t) (expToExps e (s1:sc))
+  | otherwise = error "A function name in signature does not match its definition"
 
--- (Var v)              
--- (NumE n)          
--- (SucE e)               
--- (Abs v t e)          
--- (App e1 e2)           
--- (MatchE e1 e2 (v, e3)) 
--- (BracketE e)       
+progToProgS :: Scope -> Prog -> ProgS
+progToProgS sc (MainF t e) = MainS (typeToTypes t) (expToExps e sc)
+progToProgS sc (Decl f@(Fun s _ _ _) p) = DeclS (funToFuns f sc) (progToProgS (s:sc) p) 
 
 -- Typechecking
 
 type Context = [(String, TypeS)]
 
-lookupV :: Context -> String -> TypeS
-lookupV []              s = error $ "Variable " ++ s ++ " not in scope"
-lookupV ((v, t) : env) s
-  | s == v    = t
-  | otherwise = lookupV env s
+lookupV :: Context -> String -> (TypeS, Int)
+lookupV c s = lookupV' c s 0
+
+lookupV' :: Context -> String -> Int -> (TypeS, Int)
+lookupV' []             s _ = error $ "Variable " ++ s ++ " not in scope"
+lookupV' ((v, t) : env) s n
+  | s == v    = (t, n)
+  | otherwise = lookupV' env s (n+1)
 
 -- -- Typecheck
-infertypeE :: ExpS -> Context -> TypeS
-infertypeE (VarS v)                env = lookupV env v            
-infertypeE (ZeroS)                 env = NatS
-infertypeE (SucS e)                env
- | infertypeE e env == NatS = NatS
+infertypeE :: ExpS -> Context -> (ExpS, TypeS)
+infertypeE (VarS v _)              env = (VarS v i, t)
+  where (t, i) = lookupV env v            
+infertypeE (ZeroS)                 env = (ZeroS, NatS)
+infertypeE (SucS e)                env 
+ | t == NatS = (SucS e', NatS) 
  | otherwise = error "type error: numbers must be nat"
-infertypeE (AbsS v t e)            env = ArrowS t (infertypeE e ((v, t) : env)) 
+   where (e', t) = infertypeE e env
+infertypeE (AbsS v t e)            env = (AbsS v t e', ArrowS t t') 
+ where (e', t') = infertypeE e ((v, t) : env)
 infertypeE (AppS e1 e2)            env =
     case infertypeE e1 env of
-        ArrowS t1 t2 -> if infertypeE e2 env == t1 then t2 else error "type error: argument does not match value"
-        _            -> error "type error: numbers cannot be functions"
+        (e, ArrowS t1 t2) -> if snd (infertypeE e2 env) == t1 
+                                 then (AppS e (fst (infertypeE e2 env)), t2) 
+                                 else error "type error: argument does not match value"
+        _                 -> error "type error: numbers cannot be functions"
 infertypeE (MatchS e1 e2 (v, e3))  env =
     case infertypeE e1 env of
-        NatS -> case infertypeE e2 env of
-                  t1 -> if infertypeE e3 ((v , NatS) : env) == t1 then t1 else error "type error: match cases must have the same type"
+        (e, NatS) -> case infertypeE e2 env of
+                  (e', t1) -> if snd (infertypeE e3 ((v , NatS) : env)) == t1 
+                                 then (MatchS e e' (v, (fst (infertypeE e3 ((v , NatS) : env)))) , t1) 
+                                 else error "type error: match cases must have the same type"
         _    -> error "type error: matching can only occurs with numbers"  
 
-typecheck :: ProgS -> Context -> ()
+typecheck :: ProgS -> Context -> ProgS
 typecheck (MainS t e) env
-  | infertypeE e env == t = () 
-  | otherwise             = error "main type does not match"
+  | t' == t        = MainS t e' 
+  | otherwise      = error "main type does not match"
+    where (e', t') = infertypeE e env
 typecheck (DeclS (FunS s t e) p) env
-  | infertypeE e ((s, t) : env) == t = typecheck p ((s, t) : env)
-  | otherwise                        = error $ "function type for " ++ s ++ " does not match" 
-
-
--- data ExpS = ZeroS 
---           | SucS ExpS
---           | VarS String Int  
---           | AbsS ExpS 
---           | AppS ExpS ExpS
---           | MatchS ExpS ExpS ExpS
-
--- type FunDecl = (String, Type, ExpS)
-
--- type AST = [FunDecl] 
-
--- -- substitute variables for numbers
--- type Scope = [String]
-
--- lookupV :: Scope -> String -> Int
--- lookupV []       s = error $ "Variable " ++ s ++ " not in scope" 
--- lookupV (s : cs) v = if v == s then 0 else 1 + lookupV cs v
-
--- unnameVarsP :: Prog -> Scope -> Prog
--- unnameVarsP (MainF t e) s =
--- unnameVarsP (Decl (Fun f1 t f2 e) p)  s 
---   = if f1 == f2 then (Decl (Fun "" t "" (unnameVarsE e (s))))
-
--- unnameVarsE :: Exp -> Scope -> Exp
--- unnameVarsE (Var v)               s  = Var (show (lookupV s v))
--- unnameVarsE (NumE n)               _ = NumE n
--- unnameVarsE (SucE e)               s = SucE (unnameVarsE e s)
--- unnameVarsE (Abs v e)              s = Abs "" (unnameVarsE e (v : s))
--- unnameVarsE (App e1 e2)            s = App (unnameVarsE e1 s) (unnameVarsE e2 s)
--- unnameVarsE (MatchE e1 e2 (v, e3)) s = MatchE (unnameVarsE e1 s) (unnameVarsE e2 s) ("", unnameVarsE e3 (v:s))
--- unnameVarsE (BracketE e)           s = BracketE (unnameVarsE e s)
+  | t' == t        = DeclS (FunS s t e') (typecheck p ((s, t) : env))
+  | otherwise      = error $ "function type for " ++ s ++ " does not match" 
+    where (e', t') = infertypeE e ((s, t) : env)

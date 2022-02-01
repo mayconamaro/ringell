@@ -1,14 +1,16 @@
-module Lib ( someFunc ) where
+module Lib ( parseAndEval ) where
 
-import System.Environment (getArgs)
 import Lexer
 import Parser
 import Semantic
-
-someFunc :: IO ()
-someFunc = do
-  args <- getArgs
-  s <- readFile (head args)
-  case typecheck ((progToProgS . parse . alexScanTokens) s) [] of
-    () -> return ()
+import Eval
   
+parseAndEval :: String -> Int -> ExpL
+parseAndEval s f = finalExp
+  where 
+    ast          = progToProgS [] $ parse $ alexScanTokens s
+    deBruijnAST  = typecheck ast []
+    expandedAST  = inlineF [] deBruijnAST f
+    --(inlAST, ls) = hardInline expandedAST
+    (expS, ls)   = closure expandedAST
+    finalExp     = expStoExpL expS ls
