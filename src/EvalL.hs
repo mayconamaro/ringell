@@ -85,7 +85,8 @@ expStoExpL (ZeroS)                ctx s = ZeroL
 expStoExpL (SucS e)               ctx s = SucL (expStoExpL e ctx s)
 expStoExpL (AbsS v t e)           ctx s = AbsL (expStoExpL e ((v, t):ctx) s)
 expStoExpL (AppS e1 e2)           ctx s = AppL (expStoExpL e1 ctx s) (expStoExpL e2 ctx s)
-expStoExpL (MatchS e1 e2 (v, e3)) ctx s = MatchL (expStoExpL e1 ctx s) (expStoExpL e2 ctx s) (expStoExpL e3 ((v, NatS):ctx) s)
+expStoExpL (MatchS e1 e2 (v, e3)) ctx s = MatchL (expStoExpL e1 ctx s) 
+                                            (expStoExpL e2 ctx s) (expStoExpL e3 ((v, NatS):ctx) s)
 
 find :: String -> Context -> Int
 find s ((s', t):xs)
@@ -94,7 +95,7 @@ find s ((s', t):xs)
 
 progStoExpL' :: ProgS -> Context -> ExpL
 progStoExpL' (MainS t e)            ctx = expStoExpL e ctx []
-progStoExpL' (DeclS (FunS s t e) p) ctx = AppL (AbsL (progStoExpL' p ((s, t):ctx))) (expStoExpL e ((s, t):ctx) [s])
+progStoExpL' (DeclS (FunS s t e) p) ctx = AppL (AbsL (progStoExpL' p ((s, t):ctx))) (expStoExpL e (ctx) [s])
 
 progStoExpL :: ProgS -> ExpL
 progStoExpL p = progStoExpL' p []

@@ -7,8 +7,8 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of 
-        []     -> putStrLn "I need a .rl program and a fuel value"
-        [_]    -> putStrLn "I need a .rl program and a fuel value"
+        []     -> putStrLn "Usage: ringell [FILE] [OPTION]\nWhere OPTION can be empty or a nonnegative integer to act as fuel."
+        [p]    -> readFile p >>= \s -> putStrLn $ parseAndEvalR s
         [p, f] -> if (read f < 0) 
                       then putStrLn "Fuel must be nonnegative" 
                       else readFile p >>= \s -> putStrLn $ parseAndEval s (read f)  
