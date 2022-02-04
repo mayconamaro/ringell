@@ -1,18 +1,18 @@
 name:                ringell
 version:             0.1.0.0
-github:              "githubuser/ringell"
+github:              "mayconamaro/ringell"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2022 Author name here"
+author:              "Maycon Amaro"
+maintainer:          "maycon.amaro97@gmail.com"
+copyright:           "2022 Maycon Amaro"
 
 extra-source-files:
 - README.md
 - ChangeLog.md
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+# synopsis:            Compiler from general to terminating programs 
+# category:            Development
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
@@ -31,9 +31,11 @@ executables:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
+    #- -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+
     dependencies:
     - ringell
 

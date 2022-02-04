@@ -7,11 +7,11 @@ cabal-version: 1.12
 name:           ringell
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/ringell#readme>
-homepage:       https://github.com/githubuser/ringell#readme
-bug-reports:    https://github.com/githubuser/ringell/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2022 Author name here
+homepage:       https://github.com/mayconamaro/ringell#readme
+bug-reports:    https://github.com/mayconamaro/ringell/issues
+author:         Maycon Amaro
+maintainer:     maycon.amaro97@gmail.com
+copyright:      2022 Maycon Amaro
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -21,15 +21,16 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/ringell
+  location: https://github.com/mayconamaro/ringell
 
 library
   exposed-modules:
-      Eval
+      EvalL
       Lexer
       Lib
       Parser
       Semantic
+      Unroll
   other-modules:
       Paths_ringell
   hs-source-dirs:

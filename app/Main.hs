@@ -11,4 +11,4 @@ main = do
         [_]    -> putStrLn "I need a .rl program and a fuel value"
         [p, f] -> if (read f < 0) 
                       then putStrLn "Fuel must be nonnegative" 
-                      else readFile p >>= \s -> print $ parseAndEval s (read f)  
+                      else readFile p >>= \s -> putStrLn $ parseAndEval s (read f)  

@@ -296,11 +296,11 @@ happyReduction_6 ((HappyAbsSyn5  happy_var_5) `HappyStk`
 	) `HappyStk` happyRest
 
 happyReduce_7 = happySpecReduce_3  5 happyReduction_7
-happyReduction_7 (HappyAbsSyn5  happy_var_3)
-	_
+happyReduction_7 _
+	(HappyTerminal happy_var_2)
 	(HappyAbsSyn5  happy_var_1)
 	 =  HappyAbsSyn5
-		 (App happy_var_1 happy_var_3
+		 (App happy_var_1 happy_var_2
 	)
 happyReduction_7 _ _ _  = notHappyAtAll 
 

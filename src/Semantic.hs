@@ -7,7 +7,7 @@ import Parser
 -- No invalid names for function decl+def, peano notation
 -- brackets info removed, no duplicate names
 data ExpS 
-    = VarS String Int
+    = VarS String
     | ZeroS  
     | SucS ExpS
     | AbsS String TypeS ExpS
@@ -38,7 +38,7 @@ type Scope = [String]
 
 expToExps :: Exp -> Scope -> ExpS 
 expToExps (BracketE e) sc = expToExps e sc 
-expToExps (Var v)      sc = VarS v (-1)       
+expToExps (Var v)      sc = VarS v      
 expToExps (NumE 0)     sc = ZeroS
 expToExps (NumE x)     sc = SucS (expToExps (NumE (x-1)) sc)
 expToExps (SucE e)     sc = SucS (expToExps e sc)       
@@ -67,46 +67,63 @@ progToProgS sc (Decl f@(Fun s _ _ _) p) = DeclS (funToFuns f sc) (progToProgS (s
 
 type Context = [(String, TypeS)]
 
-lookupV :: Context -> String -> (TypeS, Int)
-lookupV c s = lookupV' c s 0
+lookupV :: Context -> String -> TypeS
+lookupV c s = lookupV' c s
 
-lookupV' :: Context -> String -> Int -> (TypeS, Int)
-lookupV' []             s _ = error $ "Variable " ++ s ++ " not in scope"
-lookupV' ((v, t) : env) s n
-  | s == v    = (t, n)
-  | otherwise = lookupV' env s (n+1)
+lookupV' :: Context -> String -> TypeS
+lookupV' []             s = error $ "Variable " ++ s ++ " not in scope"
+lookupV' ((v, t) : env) s
+  | s == v    = t
+  | otherwise = lookupV' env s 
 
 -- -- Typecheck
-infertypeE :: ExpS -> Context -> (ExpS, TypeS)
-infertypeE (VarS v _)              env = (VarS v i, t)
-  where (t, i) = lookupV env v            
-infertypeE (ZeroS)                 env = (ZeroS, NatS)
+infertypeE :: ExpS -> Context -> TypeS
+infertypeE (VarS v)              env = lookupV env v            
+infertypeE (ZeroS)                 env = NatS
 infertypeE (SucS e)                env 
- | t == NatS = (SucS e', NatS) 
- | otherwise = error "type error: numbers must be nat"
-   where (e', t) = infertypeE e env
-infertypeE (AbsS v t e)            env = (AbsS v t e', ArrowS t t') 
- where (e', t') = infertypeE e ((v, t) : env)
+ | infertypeE e env == NatS = NatS
+ | otherwise = error "type error: numbers must be nat" 
+infertypeE (AbsS v t e)            env = ArrowS t (infertypeE e ((v, t) : env)) 
 infertypeE (AppS e1 e2)            env =
     case infertypeE e1 env of
-        (e, ArrowS t1 t2) -> if snd (infertypeE e2 env) == t1 
-                                 then (AppS e (fst (infertypeE e2 env)), t2) 
-                                 else error "type error: argument does not match value"
-        _                 -> error "type error: numbers cannot be functions"
+        ArrowS t1 t2 -> if infertypeE e2 env == t1 
+                          then t2
+                          else error "type error: function argument does not match the given value"
+        _            -> error "type error: numbers cannot be functions"
 infertypeE (MatchS e1 e2 (v, e3))  env =
     case infertypeE e1 env of
-        (e, NatS) -> case infertypeE e2 env of
-                  (e', t1) -> if snd (infertypeE e3 ((v , NatS) : env)) == t1 
-                                 then (MatchS e e' (v, (fst (infertypeE e3 ((v , NatS) : env)))) , t1) 
-                                 else error "type error: match cases must have the same type"
+        NatS -> case infertypeE e2 env of
+                  t1 -> if infertypeE e3 ((v , NatS) : env) == t1 
+                          then t1
+                          else error "type error: pattern match cases must have the same type"
         _    -> error "type error: matching can only occurs with numbers"  
 
-typecheck :: ProgS -> Context -> ProgS
+typecheck :: ProgS -> Context -> ()
 typecheck (MainS t e) env
-  | t' == t        = MainS t e' 
+  | t' == t        = ()
   | otherwise      = error "main type does not match"
-    where (e', t') = infertypeE e env
+    where t' = infertypeE e env
 typecheck (DeclS (FunS s t e) p) env
-  | t' == t        = DeclS (FunS s t e') (typecheck p ((s, t) : env))
+  | t' == t        = typecheck p ((s, t) : env)
   | otherwise      = error $ "function type for " ++ s ++ " does not match" 
-    where (e', t') = infertypeE e ((s, t) : env)
+    where t' = infertypeE e ((s, t) : env)
+
+{- Alternate Pretty Printing for ExpS 
+showExpS :: ExpS -> Int -> String
+showExpS (VarS s)               n = "Var " ++ s ++ "\n"
+showExpS (ZeroS)                n = "Zero\n"
+showExpS (SucS e)               n = "Suc\n" ++ replicate (2*n + 2) ' ' ++ showExpS e (n+1)
+showExpS (AbsS v t e)           n = "Abs " ++ v ++ " " ++ show t ++ "\n" 
+                                      ++ replicate (2*n + 2) ' ' ++ showExpS e (n+1)
+showExpS (AppS e1 e2)           n = "App\n" 
+                                      ++ replicate (2*n + 2) ' ' ++ showExpS e1 (n+1)
+                                      ++ replicate (2*n + 2) ' ' ++ showExpS e2 (n+1)
+showExpS (MatchS e1 e2 (v, e3)) n = "Match\n" 
+                                      ++ replicate (2*n + 2) ' ' ++ showExpS e1 (n+1) 
+                                      ++ replicate (2*n + 2) ' ' ++ showExpS e2 (n+1)
+                                      ++ replicate (2*n + 2) ' ' ++ "(" ++ v ++ ", " ++ showExpS e3 (n+1) 
+                                      ++ replicate (2*n + 2) ' ' ++ ")\n"
+
+instance Show ExpS where
+  show e = showExpS e 0
+  -}
