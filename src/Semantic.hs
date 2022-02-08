@@ -98,14 +98,17 @@ infertypeE (MatchS e1 e2 (v, e3))  env =
                           else error "type error: pattern match cases must have the same type"
         _    -> error "type error: matching can only occurs with numbers"  
 
-typecheck :: ProgS -> Context -> ()
+data Status = Ok | Fail String
+   deriving (Eq, Show)
+
+typecheck :: ProgS -> Context -> Status
 typecheck (MainS t e) env
-  | t' == t        = ()
-  | otherwise      = error "main type does not match"
+  | t' == t        = Ok
+  | otherwise      = Fail "main type does not match"
     where t' = infertypeE e env
 typecheck (DeclS (FunS s t e) p) env
   | t' == t        = typecheck p ((s, t) : env)
-  | otherwise      = error $ "function type for " ++ s ++ " does not match" 
+  | otherwise      = Fail $ "function type for " ++ s ++ " does not match" 
     where t' = infertypeE e ((s, t) : env)
 
 {- Alternate Pretty Printing for ExpS 

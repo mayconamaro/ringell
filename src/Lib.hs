@@ -18,6 +18,9 @@ parseAndEval :: String -> Int -> String
 parseAndEval s f = prettyPrint . quote $ eval finalExp []
   where 
     ast          = progToProgS [] $ parse $ alexScanTokens s
-    tyAST        = (\_ -> ast) (typecheck ast [])
+    tyASTStatus  = typecheck ast []
+    tyAST        = case tyASTStatus of 
+      Ok     -> ast
+      Fail x -> error x 
     expandedAST  = inlineF [] tyAST f
     finalExp     = progStoExpL expandedAST
