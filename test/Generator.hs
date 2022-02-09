@@ -80,11 +80,18 @@ instance Arbitrary ProgS where
 propWellTyped :: ProgS -> Bool
 propWellTyped p = (typecheck p []) == Ok 
 
+propOutOfFuel :: ProgS -> Bool
+propOutOfFuel p = el /= "out of fuel"
+  where
+    fexpL = progStoExpL (inlineF [] p 50)
+    el    = prettyPrint . quote $ eval fexpL []
+
 propEval :: ProgS -> Bool
-propEval p = if el == "out of fuel" 
-             then True 
-             else el == er 
+propEval p = el == er 
   where
     er    = prettyPrintR . quoteR $ evalR (progStoExpR p) []
     fexpL = progStoExpL (inlineF [] p 50)
     el    = prettyPrint . quote $ eval fexpL []
+
+propSemPreservation :: ProgS -> Property
+propSemPreservation p = (propOutOfFuel p) ==> (propEval p)
