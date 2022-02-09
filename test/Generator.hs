@@ -3,6 +3,9 @@ module Generator where
 import Semantic
 import Test.QuickCheck
 import Control.Monad 
+import EvalL
+import EvalR
+import Unroll
 
 genTypeS :: Gen TypeS
 genTypeS = sized genTypeS'
@@ -31,8 +34,8 @@ genExpS' 0 ctx NatS
     ns = filter (((==) NatS) . snd) ctx
     x  = map (return . VarS) (map fst ns)
 genExpS' r ctx (ArrowS t1 t2)
-  | ns == []  = liftM (AbsS s (ArrowS t1 t2)) subterm
-  | otherwise = oneof ns'
+  | ns == []  = liftM (AbsS s t1) subterm
+  | otherwise = oneof $ (liftM (AbsS s t1) subterm) : ns'
   where
     comp (v, NatS)           = False
     comp (v, ArrowS t1' t2') = t1' == t1 && t2' == t2
@@ -76,3 +79,12 @@ instance Arbitrary ProgS where
 
 propWellTyped :: ProgS -> Bool
 propWellTyped p = (typecheck p []) == Ok 
+
+propEval :: ProgS -> Bool
+propEval p = if el == "out of fuel" 
+             then True 
+             else el == er 
+  where
+    er    = prettyPrintR . quoteR $ evalR (progStoExpR p) []
+    fexpL = progStoExpL (inlineF [] p 50)
+    el    = prettyPrint . quote $ eval fexpL []

@@ -11,7 +11,10 @@ parseAndEvalR :: String -> String
 parseAndEvalR s = prettyPrintR . quoteR $ evalR finalExp []
   where 
     ast          = progToProgS [] $ parse $ alexScanTokens s
-    tyAST        = (\_ -> ast) (typecheck ast [])
+    tyASTStatus  = typecheck ast []
+    tyAST        = case tyASTStatus of 
+      Ok     -> ast
+      Fail x -> error x 
     finalExp     = progStoExpR tyAST
   
 parseAndEval :: String -> Int -> String
