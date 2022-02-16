@@ -26,6 +26,3 @@ inlineF :: Context -> ProgS -> Int -> ProgS
 inlineF env (MainS t e)            _ = MainS t e
 inlineF env (DeclS (FunS s t e) p) n = DeclS (FunS s t (finline ((s, t):env) s e n)) (inlineF ((s, t):env) p n)  
 
-closure :: ProgS -> (ExpS, [String])
-closure (MainS t e)            = (e, [])
-closure (DeclS (FunS s t e) p) = (AppS (AbsS s t (fst $ closure p)) e, (s : (snd $ closure p)))

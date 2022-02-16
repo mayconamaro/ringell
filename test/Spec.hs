@@ -1,8 +1,11 @@
 import Generation ()
 import Generator
 import Test.QuickCheck
+import Test.HUnit
+import Parsing (allUnitTests)
 
 main :: IO ()
 main = do
-    quickCheck (withMaxSuccess 1000 propWellTyped)
-    quickCheck (withMaxSuccess 1000 propSemPreservation)
+    runTestTT allUnitTests
+    quickCheck (withMaxSuccess 100 propWellTyped)
+    quickCheck (withMaxSuccess 100 propSemPreservation)
