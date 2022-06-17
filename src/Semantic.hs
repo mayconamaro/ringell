@@ -110,23 +110,3 @@ typecheck (DeclS (FunS s t e) p) env
   | t' == t        = typecheck p ((s, t) : env)
   | otherwise      = Fail $ "function type for " ++ s ++ " does not match" 
     where t' = infertypeE e ((s, t) : env)
-
-{- Alternate Pretty Printing for ExpS 
-showExpS :: ExpS -> Int -> String
-showExpS (VarS s)               n = "Var " ++ s ++ "\n"
-showExpS (ZeroS)                n = "Zero\n"
-showExpS (SucS e)               n = "Suc\n" ++ replicate (2*n + 2) ' ' ++ showExpS e (n+1)
-showExpS (AbsS v t e)           n = "Abs " ++ v ++ " " ++ show t ++ "\n" 
-                                      ++ replicate (2*n + 2) ' ' ++ showExpS e (n+1)
-showExpS (AppS e1 e2)           n = "App\n" 
-                                      ++ replicate (2*n + 2) ' ' ++ showExpS e1 (n+1)
-                                      ++ replicate (2*n + 2) ' ' ++ showExpS e2 (n+1)
-showExpS (MatchS e1 e2 (v, e3)) n = "Match\n" 
-                                      ++ replicate (2*n + 2) ' ' ++ showExpS e1 (n+1) 
-                                      ++ replicate (2*n + 2) ' ' ++ showExpS e2 (n+1)
-                                      ++ replicate (2*n + 2) ' ' ++ "(" ++ v ++ ", " ++ showExpS e3 (n+1) 
-                                      ++ replicate (2*n + 2) ' ' ++ ")\n"
-
-instance Show ExpS where
-  show e = showExpS e 0
-  -}

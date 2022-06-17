@@ -1,86 +1,88 @@
 module EvalL where
 
+import Control.Monad
 import Semantic
 
-{-- High Order Abstract Syntax by McBride --}
-
-data Name = Local Int
-          | Quote Int
-          deriving (Eq, Show)
-
-data ExpL = Free Name 
-          | Bound Int
-          | AppL ExpL ExpL
-          | ZeroL
-          | Error
+data ExpL = ZeroL
+          | ErrorL
           | SucL ExpL
+          | Bound Int
           | AbsL ExpL
-          | MatchL ExpL ExpL ExpL 
+          | AppL ExpL ExpL
+          | MatchL ExpL ExpL ExpL
           deriving (Eq, Show)
 
-data VNum = VZero
-          | VSuc VNum
+-- Variable Shifting and Substitution
+--
 
-data Value = VAbs (Value -> Value)
-           | VNumber VNum
-           | VError
-           | VNeutral Neutral
+shiftTerm :: Int -> ExpL -> ExpL
+shiftTerm d = walk 0
+  where walk c (Bound x)
+          | x >= c               = Bound (x+d)
+          | otherwise            = Bound x
+        walk c (AbsL t1)         = AbsL (walk (c+1) t1)
+        walk c (AppL t1 t2)      = AppL (walk c t1) (walk c t2) 
+        walk c (ZeroL)           = ZeroL
+        walk c (SucL t)          = SucL (walk c t)
+        walk c (MatchL t1 t2 t3) = MatchL (walk c t1) (walk c t2) (walk (c+1) t3)
+        walk c (ErrorL)          = ErrorL
 
-data Neutral = NFree Name
-             | NApp Neutral Value
+substTerm :: Int -> ExpL -> ExpL -> ExpL
+substTerm j s = walk 0
+  where walk c (Bound x)
+          | x == j+c             = s
+          | otherwise            = Bound x
+        walk c (AbsL t1)         = AbsL (walk (c+1) t1)
+        walk c (AppL t1 t2)      = AppL (walk c t1) (walk c t2)
+        walk c (ZeroL)           = ZeroL
+        walk c (SucL t)          = SucL (walk c t)
+        walk c (MatchL t1 t2 t3) = MatchL (walk c t1) (walk c t2) (walk (c+1) t3)
+        walk c (ErrorL)          = ErrorL
 
-type Env = [Value]
+substTopTerm :: ExpL -> ExpL -> ExpL
+substTopTerm s t = shiftTerm (-1) (substTerm 0 (shiftTerm 1 s) t)
 
-eval :: ExpL -> Env -> Value
-eval (Free x)          env = vfree x
-eval (Bound i)         env = if i >= length env 
-                                then error $ "Tried to access index " ++ show i ++ " in " ++ show (map quote env) 
-                                else env !! i
-eval (Error)           env = VError
-eval (AppL e1 e2)      env = vapp (eval e1 env) (eval e2 env)
-eval (AbsL e)          env = VAbs (\x -> eval e (x:env))
-eval (ZeroL)           env = VNumber VZero
-eval (SucL e)          env = vsuc (eval e env)
-eval (MatchL e1 e2 e3) env = vmatch (eval e1 env) env e2 e3
+-- Evaluation
 
-vmatch :: Value -> Env -> ExpL -> ExpL -> Value
-vmatch (VNumber VZero)     env e1 _ = eval e1 env
-vmatch (VNumber (VSuc x))  env _ e2 = eval e2 ((VNumber x):env)
-vmatch (VError)            env _ _  = VError
-vmatch e                   _   _ _  = error $ "tried to match " ++ show (quote e)
+isValue :: ExpL -> Bool
+isValue (AbsL _) = True
+isValue (ZeroL)  = True
+isValue (SucL t) = isValue t
+isValue _        = False
 
-vsuc :: Value -> Value
-vsuc (VNumber n) = VNumber (VSuc n)
+isError :: ExpL -> Bool
+isError ErrorL = True
+isError _      = False
 
-vapp :: Value -> Value -> Value
-vapp (VError)     _      = VError
-vapp _            VError = VError    
-vapp (VAbs f)     v      = f v
-vapp (VNeutral n) v      = VNeutral (NApp n v)
+eval1 :: ExpL -> Maybe ExpL
+eval1 (AppL (AbsL t12) v2)
+  | isValue v2 = return $ substTopTerm v2 t12
+  | isError v2 = return ErrorL
+eval1 (AppL t1 t2)
+  | isValue t1 = liftM2 AppL (return t1) (eval1 t2)
+  | isError t1 = return ErrorL
+  | otherwise  = liftM2 AppL (eval1  t1) (return t2)
+eval1 (SucL t) 
+  | isValue t = Nothing
+  | otherwise = liftM SucL (eval1 t)
+eval1 (MatchL t1 t2 t3)
+  | isValue t1 = case t1 of
+      ZeroL  -> return t2
+      SucL t -> return $ substTopTerm t t3
+  | isError t1 = return ErrorL
+  | otherwise  = liftM3 MatchL (eval1 t1) (return t2) (return t3)
+eval1 _ = Nothing
 
-vfree :: Name -> Value
-vfree n = VNeutral (NFree n)
+eval :: ExpL -> ExpL
+eval t =
+  case eval1 t of
+    Just t' -> eval t'
+    Nothing -> t
 
-quote :: Value -> ExpL
-quote = quote' 0
-
-quote' :: Int -> Value -> ExpL
-quote' i (VAbs f)           = AbsL (quote' (i + 1) (f (vfree (Quote i))))
-quote' i (VNumber VZero)    = ZeroL
-quote' i (VNumber (VSuc n)) = SucL (quote' i (VNumber n)) 
-quote' i (VError)           = Error 
-quote' i (VNeutral n)       = neutralQuote i n
-
-neutralQuote :: Int -> Neutral -> ExpL
-neutralQuote i (NFree x)  = boundfree i x
-neutralQuote i (NApp n v) = AppL (neutralQuote i n) (quote' i v) 
-
-boundfree :: Int -> Name -> ExpL
-boundfree i (Quote k) = Bound (i - k - 1)
-boundfree i  x        = Free x  
+-- Translating to System L
 
 expStoExpL :: ExpS -> Context -> [String] -> ExpL
-expStoExpL (VarS v)               ctx s = if elem v s then Error else Bound (find v ctx)
+expStoExpL (VarS v)               ctx s = if elem v s then ErrorL else Bound (find v ctx)
 expStoExpL (ZeroS)                ctx s = ZeroL
 expStoExpL (SucS e)               ctx s = SucL (expStoExpL e ctx s)
 expStoExpL (AbsS v t e)           ctx s = AbsL (expStoExpL e ((v, t):ctx) s)
@@ -101,7 +103,7 @@ progStoExpL :: ProgS -> ExpL
 progStoExpL p = progStoExpL' p []
 
 prettyPrint :: ExpL -> String
-prettyPrint (Error)  = "out of fuel"
+prettyPrint (ErrorL)  = "out of fuel"
 prettyPrint (ZeroL)  = "0"
 prettyPrint (SucL e) = show (1 + calc e)
   where 

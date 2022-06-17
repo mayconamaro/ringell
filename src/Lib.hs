@@ -5,20 +5,20 @@ import Parser
 import Semantic
 import Unroll
 import EvalL
-import EvalR
+import qualified EvalPierceR as P
 
 parseAndEvalR :: String -> String
-parseAndEvalR s = prettyPrintR . quoteR $ evalR finalExp []
+parseAndEvalR s = (P.prettyPrintR $ P.eval finalExp)
   where 
     ast          = progToProgS [] $ parse $ alexScanTokens s
     tyASTStatus  = typecheck ast []
     tyAST        = case tyASTStatus of 
       Ok     -> ast
       Fail x -> error x 
-    finalExp     = progStoExpR tyAST
+    finalExp     = P.progStoExpR tyAST
   
 parseAndEval :: String -> Int -> String
-parseAndEval s f = prettyPrint . quote $ eval finalExp []
+parseAndEval s f = prettyPrint $ eval finalExp
   where 
     ast          = progToProgS [] $ parse $ alexScanTokens s
     tyASTStatus  = typecheck ast []
